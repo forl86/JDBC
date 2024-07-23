@@ -2,6 +2,7 @@ package jm.task.core.jdbc.dao;
 import jm.task.core.jdbc.model.User;
 import jm.task.core.jdbc.util.Util;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.SQLSyntaxErrorException;
@@ -9,10 +10,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class UserDaoJDBCImpl implements UserDao {
-    private java.sql.Connection connection;
+    private Connection connection;
     public UserDaoJDBCImpl() {
+        //здесь нельзя try with resources, он же закроет соединение?
         try {
-            this.connection = Util.connectDB();
+            this.connection = Util.connectDB_JDBC();
         } catch ( SQLException e) {
             e.printStackTrace();
             System.err.println(e.getMessage());
@@ -26,12 +28,11 @@ public class UserDaoJDBCImpl implements UserDao {
             PreparedStatement myStmt = connection.prepareStatement(createTable);
             int result = myStmt.executeUpdate();
             System.out.println("create table returned " + result);
-        } catch (java.sql.SQLSyntaxErrorException ignore) {
-
-        }
-        catch (SQLException e) {
-            e.printStackTrace();
-            System.err.println(e.getMessage());
+        } catch (SQLException ignoreIfTableExists) {
+            if ( ignoreIfTableExists.getMessage().compareTo("Table 'Users' already exists") != 0 ) {
+                ignoreIfTableExists.printStackTrace();
+                System.err.println(ignoreIfTableExists.getMessage());
+            }
         }
     }
 
@@ -41,19 +42,17 @@ public class UserDaoJDBCImpl implements UserDao {
             PreparedStatement myStmt = connection.prepareStatement(dropTable);
             int result = myStmt.executeUpdate();
             System.out.println("drop table returned " + result);
-        } catch (SQLSyntaxErrorException ignore) {
-
-        }
-        catch (SQLException e) {
-            e.printStackTrace();
-            System.err.println(e.getMessage());
+        } catch (SQLException ignoreIfNotExists) {
+            if (ignoreIfNotExists.getMessage().compareTo("Unknown table 'MyDB.Users'") != 0) {
+                ignoreIfNotExists.printStackTrace();
+                System.err.println(ignoreIfNotExists.getMessage());
+            }
         }
      }
 
     public void saveUser(String name, String lastName, byte age) {
         try {
             PreparedStatement preparedStGetLastID = connection.prepareStatement("SELECT MAX(id) FROM Users");
-//            "SELECT LAST_INSERT_ID()"
             java.sql.ResultSet resultSet = preparedStGetLastID.executeQuery();
             int lastId = 0;
             while ( resultSet.next() ) {
@@ -64,7 +63,6 @@ public class UserDaoJDBCImpl implements UserDao {
                 }
             }
             PreparedStatement preparedStatement = connection.prepareStatement("INSERT INTO Users VALUES( ?, ?, ?, ?)");
-            //add retrieving id
             preparedStatement.setInt(1, lastId+1);
             preparedStatement.setString(2, name);
             preparedStatement.setString(3, lastName);
